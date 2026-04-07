@@ -11,7 +11,8 @@ export function createTransformStream(taskFn) {
       try {
         const parsed = JSON.parse(inputData);
         const result = taskFn(parsed);
-        this.push(result);
+        // Всегда преобразуем результат в строку
+        this.push(String(result));
         callback();
       } catch (err) {
         callback(err);

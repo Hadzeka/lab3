@@ -6,21 +6,33 @@ import { pipeline } from 'stream/promises';
 import { createInterface } from 'readline';
 import { createTransformStream } from './streams/transformStream.js';
 import { dashatize } from './tasks/dashatize.js';
+import { countInversions } from './tasks/inversions.js';
 
 program
   .option('-i, --input <path>', 'input file path')
   .option('-o, --output <path>', 'output file path')
-  .requiredOption('-t, --task <task>', 'task name (must be "dashatize")')
+  .requiredOption('-t, --task <task>', 'task name (dashatize or inversions)')
   .parse(process.argv);
 
 const options = program.opts();
 
-if (options.task !== 'dashatize') {
-  console.error(`Unknown task: ${options.task}. Only "dashatize" is implemented.`);
-  process.exit(1);
+// Выбор функции задачи
+function getTaskFunction(taskName) {
+  switch (taskName) {
+    case 'dashatize':
+      return dashatize;
+    case 'inversions':
+      return countInversions;
+    default:
+      return null;
+  }
 }
 
-const taskFn = dashatize;
+const taskFn = getTaskFunction(options.task);
+if (!taskFn) {
+  console.error(`Unknown task: ${options.task}. Available: dashatize, inversions`);
+  process.exit(1);
+}
 
 // ---------- Режим с файлом ----------
 if (options.input) {
@@ -72,7 +84,12 @@ const rl = createInterface({
   prompt: '> '
 });
 
-console.log(`Task: dashatize. Enter an integer (e.g., 274) or a JSON number. Type "exit" to quit.`);
+// Приветственное сообщение в зависимости от задачи
+if (options.task === 'dashatize') {
+  console.log(`Task: dashatize. Enter an integer (e.g., 274) or a JSON number. Type "exit" to quit.`);
+} else {
+  console.log(`Task: inversions. Enter an array as JSON (e.g., [4,1,2,3]). Type "exit" to quit.`);
+}
 rl.prompt();
 
 rl.on('line', async (line) => {
@@ -87,14 +104,19 @@ rl.on('line', async (line) => {
   }
 
   try {
-    let num;
+    let parsedInput;
     try {
-      num = JSON.parse(trimmed);
+      parsedInput = JSON.parse(trimmed);
     } catch {
-      num = Number(trimmed);
+      // Если не JSON, для dashatize пробуем как число
+      if (options.task === 'dashatize') {
+        parsedInput = Number(trimmed);
+      } else {
+        throw new Error('Input must be a valid JSON array for inversions task');
+      }
     }
-    const result = taskFn(num);
-    outputStream.write(result + '\n');
+    const result = taskFn(parsedInput);
+    outputStream.write(String(result) + '\n');
   } catch (err) {
     console.error(`Invalid input: ${err.message}`);
   }
